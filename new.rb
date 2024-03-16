@@ -1,6 +1,51 @@
-require "cgi"
+require 'cgi'
 
-class Builder
+class Template
+
+	def initialize(result, templates, render, &block)
+		@templates = templates
+		@result = result
+		@param = {}
+		instance_exec(&block) if block_given? # configurator
+		instance_exec(&render) # renderer
+	end
+
+	def param(name, value=nil, &block)
+		if block_given?
+			@param[name] = block
+		else
+			@param[name] = value
+		end
+	end
+
+	def render_param(name)
+		render = @param[name]
+		render.call if render
+	end
+
+	def template(name, &block)
+		Template.new(@result, @templates, @templates[name], &block)
+	end
+
+	def hash_to_attributes(hash)
+		result = ""
+		attributes = hash.keys.map do |name|
+			value = hash[name]
+			next if value == nil or value == ""
+			result << " #{name.to_s.gsub('_', '-')}=\"#{CGI::escapeHTML(value)}\""
+		end
+		result
+	end
+
+	# HTML Elements
+	def unsafe(text)
+		@result << text
+	end
+
+	def text(text)
+		@result << CGI::escapeHTML(text || "")
+	end
+
 	def tag(symbol, attributes={}, &block)
 		unsafe "<#{symbol}#{hash_to_attributes(attributes)}>"
 		instance_exec(&block) if block_given?
@@ -15,52 +60,6 @@ class Builder
 		unsafe "<#{symbol}#{hash_to_attributes(attributes)}/>"
 	end
 
-	def hash_to_attributes(hash)
-		result = ""
-		attributes = hash.keys.map do |name|
-			value = hash[name]
-			next if value == nil or value == ""
-			result << " #{name.to_s.gsub('_', '-')}=\"#{CGI::escapeHTML(value)}\""
-		end
-		result
-	end
-
-	def stack=(stack)
-		@stack = stack
-	end
-
-	def stack
-		@stack
-	end
-
-	def comp(type, *args, &block)
-		comp = type.new(*args)
-		comp.stack = @stack
-		comp.instance_exec(&block) if block_given?
-		comp.render
-	end
-
-	def self.run(type=nil, *args, &block)
-		builder = Builder.new()
-		builder.stack = ""
-		if type
-			builder.comp(type, *args, &block)
-		else
-			builder.instance_exec(&block)
-		end
-		builder.stack
-	end
-
-	def unsafe(text)
-		@stack << text
-	end
-
-	def text(text)
-		@stack << CGI::escapeHTML(text || "")
-	end
-
-
-	# HTML TAGS:
 	def html(**attributes, &block)
 		unsafe("<!DOCTYPE html>")
 		tag("html", attributes, &block)
@@ -358,10 +357,6 @@ class Builder
 		tag("object", attributes, &block)
 	end
 	
-	def param(**attributes, &block)
-		tag("param", attributes, &block)
-	end
-	
 	def video(**attributes, &block)
 		tag("video", attributes, &block)
 	end
@@ -515,36 +510,45 @@ class Builder
 	end	
 end
 
-class Template < Builder
-	def initialize(slots, context, &block)
-		@slots = slots
-		@context = context
-	end
+class Htmpl
 
-	def slot(name, &block)
-		@slots[name] = block
-	end
-
-	def render_slot(name)
-		instance_exec(&@slots[name]) if @slots.key?(name)
-	end
-end
-
-class Component < Builder
 	def initialize()
-		@slots = {}
-		@parameters = {}
+		@templates = {}
 	end
 
-	def slot(name, &block)
-		@slots[name] = block
+	def register(name, &block)
+		@templates[name] = block
 	end
 
-	def param(name, value)
-		@parameters[name] = value
-	end
-
-	def render_slot(name)
-		instance_exec(&@slots[name]) if @slots.key?(name)
+	def run(name=nil, &block)
+		@result = []
+		if not name
+			Template.new(@result, @templates, block)
+		else
+			Template.new(@result, @templates, @templates[name], &block)
+		end
+		@result
 	end
 end
+
+engine = Htmpl.new()
+engine.register "hello" do
+	text @param[:name].to_s
+	render_param :body
+end
+
+# run anonymous template
+puts(engine.run do
+	text "start"
+	template "hello" do
+		param :name, 10
+		param :body do
+			template "hello"
+			text @param[:name].to_s
+			if @param[:name] == 10
+				text "ive done it!"
+			end
+		end
+	end
+	text "end"
+end)
