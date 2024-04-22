@@ -38,36 +38,15 @@ haml_example = <<-HAML_EXAMPLE
       %td= note
 HAML_EXAMPLE
 
-class Notes < Component
-	def initialize(notes)
-		super()
-		@notes = notes
-	end
-
-	def render
-		span @notes.title
-		span @notes.description
-		table do 
-			tr do
-				@notes.randomList.each do |note|
-					td do
-						text note.to_s
-					end
-				end
-			end
-		end
-	end
-end
-
 engine = Htmpl.new()
 engine.register "notes" do
 	context = @param[:notes]
 	span context.title
 	span context.description
-	table do 
-		tr do
+	tag "table" do 
+		tag "tr" do
 			context.randomList.each do |note|
-				td do
+				tag "td" do
 					text note.to_s
 				end
 			end
@@ -81,10 +60,6 @@ __result = ''
 Benchmark.bmbm(20) do |bcmk|
   bcmk.report("erb_test") { (1..2000).each { ERB.new(erb_example, trim_mode: 0).result binding } }
   bcmk.report("slim_test") { (1..2000).each{ Slim::Template.new { slim_example }.render(context) } }
-  bcmk.report("my_test") { (1..2000).each { 
-		Builder.run(Notes, context.notes)
-	} 
-  }
   bcmk.report("my_new_test") { (1..2000).each { 
 		engine.run "notes" do
 			param :notes, context.notes
