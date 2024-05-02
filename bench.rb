@@ -4,7 +4,6 @@ require 'slim'
 require 'benchmark'
 require 'ostruct'
 require "./lib/htmplt.rb"
-require "./new.rb"
 
 notes = OpenStruct.new title: 'Write an essay', description: 'My essay is about...', randomList: (0..50).to_a.sort{ rand() - 0.5 }[0..10000]
 
@@ -38,12 +37,12 @@ haml_example = <<-HAML_EXAMPLE
       %td= note
 HAML_EXAMPLE
 
-engine = Htmpl.new()
+engine = Htmplt.new()
 engine.register "notes" do
 	context = @param[:notes]
 	span context.title
 	span context.description
-	tag "table" do 
+	tag "table" do
 		tag "tr" do
 			context.randomList.each do |note|
 				tag "td" do
