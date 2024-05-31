@@ -8,6 +8,7 @@ class Template
 		@param = {}
 		@parent = parent
 		@renderer = renderer
+		@context = nil
 
 		# TODO parent is all the same -> ROOT?
 		# move templates and result to parent??
@@ -22,13 +23,17 @@ class Template
 		end
 	end
 
+	def context(value)
+		@context = value
+	end
+
 	def render()
 		instance_exec(&@renderer)
 	end
 
-	def render_param(name, context=nil)
+	def render_param(name, render_context=nil)
 		renderer = @param[name]
-		@parent.instance_exec(context, &renderer) if renderer
+		@parent.instance_exec(render_context, &renderer) if renderer
 	end
 
 	def template(name, &block)
@@ -541,3 +546,20 @@ class Htmplt
 		result
 	end
 end
+
+engine = Htmplt.new
+engine.register "template" do
+	text "hello there!"
+	@param[:items].each do |item|
+		render_param(:item_template, item)
+	end
+end
+
+i = 10
+print(
+engine.run("template") do
+	param :items, [10, 20, 30, 40]
+	param :item_template do |item|
+		text (item + i).to_s
+	end
+end)
