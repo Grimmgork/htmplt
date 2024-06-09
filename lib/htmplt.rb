@@ -1,11 +1,30 @@
 require 'cgi'
 
+class TemplateParams
+	def initialize()
+		@params = {}
+	end
+
+	def [](name)
+		@params[name]
+	end
+
+	def []=(name, value)
+		@params[name] = value
+	end
+
+	def method_missing(method_name, *args, &block)
+		return @params[method_name] if @params.has_key?(method_name)
+	end
+end
+  
+
 class Template
 
 	def initialize(result, templates, renderer, parent, &block)
 		@templates = templates
 		@result = result
-		@param = {}
+		@params = TemplateParams.new
 		@parent = parent
 		@renderer = renderer
 		@context = nil
@@ -17,10 +36,14 @@ class Template
 
 	def param(name, value=nil, &block)
 		if block_given?
-			@param[name] = block
+			@params[name] = block
 		else
-			@param[name] = value
+			@params[name] = value
 		end
+	end
+
+	def params
+		@params
 	end
 
 	def context(value)
@@ -32,7 +55,8 @@ class Template
 	end
 
 	def render_param(name, render_context=nil)
-		renderer = @param[name]
+		renderer = @params[name]
+		# solve problem where @parent can be nil if it has no parent
 		@parent.instance_exec(render_context, &renderer) if renderer
 	end
 
@@ -542,7 +566,7 @@ class Htmplt
 	def run(name=nil, result="", &block)
 		renderer = block
 		renderer = @templates[name] if name
-		Template.new(result, @templates, renderer, nil, &block).render()
+		Template.new(result, @templates, renderer, Template.new(result, @templates, renderer, nil), &block).render()
 		result
 	end
 end
@@ -550,7 +574,7 @@ end
 engine = Htmplt.new
 engine.register "template" do
 	text "hello there!"
-	@param[:items].each do |item|
+	params.items.each do |item|
 		render_param(:item_template, item)
 	end
 end
