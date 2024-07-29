@@ -1,49 +1,43 @@
-require 'cgi'
+require 'cgi'  
 
-class TemplateParams
+class TemplateInitializer
 	def initialize()
 		@params = {}
 	end
 
-	def [](name)
-		@params[name]
-	end
-
-	def []=(name, value)
+	def param(name, value=nil)
 		@params[name] = value
 	end
 
-	def method_missing(method_name, *args, &block)
-		return @params[method_name] if @params.has_key?(method_name)
+	def slot(name, &block)
+		if block_given?
+			@params[name] = block
+		end
+	end
+
+	def params
+		@params
 	end
 end
-  
 
 class Template
 
 	def initialize(result, templates, renderer, parent, &block)
 		@templates = templates
 		@result = result
-		@params = TemplateParams.new
 		@parent = parent
 		@renderer = renderer
 		@context = nil
 
 		# TODO parent is all the same -> ROOT?
 		# move templates and result to parent??
-		instance_exec(&block) if block_given? # configurator
+		initializer = TemplateInitializer.new
+		initializer.instance_exec(&block) if block_given?
+		@params = initializer.params
 	end
 
-	def param(name, value=nil, &block)
-		if block_given?
-			@params[name] = block
-		else
-			@params[name] = value
-		end
-	end
-
-	def params
-		@params
+	def param(name)
+		@params[name]
 	end
 
 	def context(value)
@@ -54,7 +48,7 @@ class Template
 		instance_exec(&@renderer)
 	end
 
-	def render_param(name, render_context=nil)
+	def slot(name, render_context=nil)
 		renderer = @params[name]
 		# solve problem where @parent can be nil if it has no parent
 		@parent.instance_exec(render_context, &renderer) if renderer
@@ -574,8 +568,8 @@ end
 engine = Htmplt.new
 engine.register "template" do
 	text "hello there!"
-	params.items.each do |item|
-		render_param(:item_template, item)
+	param(:items).each do |item|
+		slot(:item_template, item)
 	end
 end
 
@@ -583,7 +577,8 @@ i = 10
 print(
 engine.run("template") do
 	param :items, [10, 20, 30, 40]
-	param :item_template do |item|
+	slot :item_template do |item|
 		text (item + i).to_s
+		html
 	end
 end)

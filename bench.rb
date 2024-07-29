@@ -39,11 +39,11 @@ HAML_EXAMPLE
 
 engine = Htmplt.new()
 engine.register "notes" do
-	span params.notes.title
-	span params.notes.description
+	span params[:notes].title
+	span params[:notes].description
 	tag "table" do
 		tag "tr" do
-			params.notes.randomList.each do |note|
+			params[:notes].randomList.each do |note|
 				tag "td" do
 					text note.to_s
 				end
