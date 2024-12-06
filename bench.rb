@@ -38,12 +38,12 @@ haml_example = <<-HAML_EXAMPLE
 HAML_EXAMPLE
 
 engine = Htmplt.new()
-engine.register "notes" do
-	span params[:notes].title
-	span params[:notes].description
+engine.template "notes" do
+	span @params[:notes].title
+	span @params[:notes].description
 	tag "table" do
 		tag "tr" do
-			params[:notes].randomList.each do |note|
+			@params[:notes].randomList.each do |note|
 				tag "td" do
 					text note.to_s
 				end
@@ -56,11 +56,11 @@ context = OpenStruct.new notes: notes
 __result = ''
 
 Benchmark.bmbm(20) do |bcmk|
-  bcmk.report("erb_test") { (1..2000).each { ERB.new(erb_example, trim_mode: 0).result binding } }
-  bcmk.report("slim_test") { (1..2000).each{ Slim::Template.new { slim_example }.render(context) } }
-  bcmk.report("my_new_test") { (1..2000).each { 
-		engine.run "notes" do
-			param :notes, context.notes
+  bcmk.report("erb_test") { (1..5000).each { ERB.new(erb_example, trim_mode: 0).result binding } }
+  bcmk.report("slim_test") { (1..5000).each{ Slim::Template.new { slim_example }.render(context) } }
+  bcmk.report("my_new_test") { (1..5000).each { 
+		engine.run("notes") do |param|
+			param[:notes] = context.notes
 		end
 	} 
   }

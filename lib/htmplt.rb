@@ -1,62 +1,62 @@
-require 'cgi'  
+require 'cgi' 
 
-class TemplateInitializer
+class TemplateRenderContext
+	def initialize(result, templates)
+		@result = result
+		@templates = templates
+	end
+
+	def <<(text)
+		@result << text
+		self
+	end
+
+	def get_template(name)
+		@templates[name]
+	end
+end
+
+class TemplateParameters
 	def initialize()
 		@params = {}
 	end
 
-	def param(name, value=nil)
+	def to_hash
+		@params
+	end
+
+	def []=(name, value=nil)
 		@params[name] = value
 	end
 
-	def slot(name, &block)
-		if block_given?
-			@params[name] = block
-		end
-	end
-
-	def params
-		@params
+	def [](name, &block)
+		@params[name] = block if block_given?
 	end
 end
 
 class Template
 
-	def initialize(result, templates, renderer, parent, &block)
-		@templates = templates
-		@result = result
+	def initialize(context, renderer, parent, &block)
+		@context = context
 		@parent = parent
 		@renderer = renderer
-		@context = nil
 
-		# TODO parent is all the same -> ROOT?
-		# move templates and result to parent??
-		initializer = TemplateInitializer.new
-		initializer.instance_exec(&block) if block_given?
-		@params = initializer.params
+		params = TemplateParameters.new
+		block.call(params) if block_given?
+		@params = params.to_hash
 	end
 
-	def param(name)
-		@params[name]
-	end
-
-	def context(value)
-		@context = value
+	def fragment(renderer, render_context=nil)
+		@parent.instance_exec(render_context, &renderer)
 	end
 
 	def render()
 		instance_exec(&@renderer)
 	end
 
-	def slot(name, render_context=nil)
-		renderer = @params[name]
-		# solve problem where @parent can be nil if it has no parent
-		@parent.instance_exec(render_context, &renderer) if renderer
-	end
-
 	def template(name, &block)
 		# TODO prevent infinite loop?
-		Template.new(@result, @templates, @templates[name], self, &block).render()
+		Template.new(@context, @context.get_template(name), self, &block).render()
 	end
 
 	def hash_to_attributes(hash)
@@ -71,11 +71,11 @@ class Template
 
 	# HTML Elements
 	def unsafe(text)
-		@result << text
+		@context << text
 	end
 
 	def text(text)
-		@result << CGI::escapeHTML(text || "")
+		@context << CGI::escapeHTML(text || "")
 	end
 
 	def tag(symbol, attributes={}, &block)
@@ -127,10 +127,6 @@ class Template
 
 	def p(**attributes, &block)
 		tag("p", attributes, &block)
-	end
-
-	def head(**attributes, &block)
-		tag("head", attributes, &block)
 	end
 	
 	def title(**attributes, &block)
@@ -552,33 +548,37 @@ class Htmplt
 		@templates = {}
 	end
 
-	def register(name, &block)
+	def template(name, &block)
 		@templates[name] = block
 		self
 	end
 
-	def run(name=nil, result="", &block)
-		renderer = block
+	def run(name, &block)
 		renderer = @templates[name] if name
-		Template.new(result, @templates, renderer, Template.new(result, @templates, renderer, nil), &block).render()
+		result = ""
+
+		context = TemplateRenderContext.new(result, @templates)
+		Template.new(context, renderer, Template.new(context, renderer, nil), &block).render()
 		result
 	end
 end
 
-engine = Htmplt.new
-engine.register "template" do
-	text "hello there!"
-	param(:items).each do |item|
-		slot(:item_template, item)
-	end
-end
+# engine = Htmplt.new
+# engine.template "template" do
+#  	text "hello there!"
+#  	@params[:items].each do |item|
+# 		fragment(@params[:item_template], item)
+# 		template("template") do |param|
+# 			param[:items] = []
+# 		end
+# 	end
+# end
 
-i = 10
-print(
-engine.run("template") do
-	param :items, [10, 20, 30, 40]
-	slot :item_template do |item|
-		text (item + i).to_s
-		html
-	end
-end)
+# result = engine.run("template") do |param|
+# 	param[:items] = [1, 2, 3]
+# 	param[:item_template] do |item| 
+# 		text "- item: #{item}"
+# 	end
+# end
+
+# puts result
